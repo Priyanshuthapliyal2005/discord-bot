@@ -1,12 +1,13 @@
-# common.py - Define common functionality here
+# common.py
 import discord
 from discord.ext import commands
 
-intents = discord.Intents.all()
-bot = commands.Bot(command_prefix='!', intents=intents)
+class MiddlemanBot(commands.Bot):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-# Initialize a dictionary to store ticket information
-bot.tickets = {}
+        # Initialize a dictionary to store ticket information
+        self.tickets = {}
 
-# Initialize a dictionary to store the message IDs associated with dropdowns
-bot.dropdown_message_ids = {}
+        # Initialize a dictionary to store the message IDs associated with dropdowns
+        self.dropdown_message_ids = {}
