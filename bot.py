@@ -54,24 +54,24 @@ import discord
 #         if self.message:
 #             await self.crypto_confirm_view.message.edit(view=self.crypto_confirm_view)
 
-#     async def sending(self, interaction: discord.Interaction, button: discord.ui.Button):
-#         self.role = 'Sending'
-#         self.sending_user = interaction.user
-#         await interaction.response.defer()
-#         await self.update_panel()
+    # async def sending(self, interaction: discord.Interaction, button: discord.ui.Button):
+    #     self.role = 'Sending'
+    #     self.sending_user = interaction.user
+    #     await interaction.response.defer()
+    #     await self.update_panel()
 
-#     async def receiving(self, interaction: discord.Interaction, button: discord.ui.Button):
-#         self.role = 'Receiving'
-#         self.receiving_user = interaction.user
-#         await interaction.response.defer()
-#         await self.update_panel()
+    # async def receiving(self, interaction: discord.Interaction, button: discord.ui.Button):
+    #     self.role = 'Receiving'
+    #     self.receiving_user = interaction.user
+    #     await interaction.response.defer()
+    #     await self.update_panel()
 
-#     async def reset(self, interaction: discord.Interaction, button: discord.ui.Button):
-#         self.role = None
-#         self.sending_user = interaction.user
-#         self.receiving_user = interaction.user
-#         await interaction.response.defer()
-#         await self.update_panel()
+    # async def reset(self, interaction: discord.Interaction, button: discord.ui.Button):
+    #     self.role = None
+    #     self.sending_user = interaction.user
+    #     self.receiving_user = interaction.user
+    #     await interaction.response.defer()
+    #     await self.update_panel()
 
 # class Crypto(discord.ui.View):
 #     def __init__(self, interaction):
@@ -184,12 +184,40 @@ import discord
 # bot.run(config.DISCORD_TOKEN)
 import discord
 from discord.ext import commands
+from discord.ui import View, Button, Modal, TextInput
 from common import MiddlemanBot
 from crypto_channel import CryptoChannel
-
+from database import init_db
+from transaction import Transaction
 import config  # Import the configuration file
 
 bot = MiddlemanBot(command_prefix='!', intents=discord.Intents.all())
+init_db(bot) 
+transaction_handler = Transaction(bot.db)  # Initialize the Transaction class
+
+# Common configurations for different cryptocurrencies
+crypto_configurations = {
+    "Bitcoin": {
+        "placeholder": "Enter the amount of Bitcoin",
+        "primary_label": "Sending Bitcoin",
+        "secondary_label": "Receiving Bitcoin"
+    },
+    "Ethereum": {
+        "placeholder": "Enter the amount of Ethereum",
+        "primary_label": "Sending Ethereum",
+        "secondary_label": "Receiving Ethereum"
+    },
+    "Litecoin": {
+        "placeholder": "Enter the amount of Litecoin",
+        "primary_label": "Sending Litecoin",
+        "secondary_label": "Receiving Litecoin"
+    },
+    "Solana": {
+        "placeholder": "Enter the amount of Solana",
+        "primary_label": "Sending Solana",
+        "secondary_label": "Receiving Solana"
+    }
+}
 
 @bot.event
 async def on_ready():
@@ -223,59 +251,107 @@ async def tnc(ctx):
                    "All funds lost in our possession following a bot error will be compensated 1:1. User errors will not be compensated."
                    , ephemeral=True)
     
+
 class MiddlemanSetup(discord.ui.View):
     def __init__(self, interaction):
         super().__init__(timeout=None)  # Disable timeout
-        self.value = None
+        self.role = None
         self.interaction = interaction
+        self.sending_user = None
+        self.receiving_user = None
 
-    @discord.ui.button(label='Sending', style=discord.ButtonStyle.green, custom_id='sending_button')
+    async def interaction_check(self, interaction: discord.Interaction):
+        # Additional check for the interaction
+        return interaction.user.id == self.interaction.user.id
+
+    async def update_panel(self):
+        # This method updates the panel based on the selected role
+        self.clear_items()
+
+        if self.role == 'Sending':
+            self.add_item(discord.ui.Button(label=f'Sending {self.selected_crypto}', style=discord.ButtonStyle.green, disabled=True))
+            self.add_item(discord.ui.Button(label='Receiving', style=discord.ButtonStyle.red, custom_id='receiving_button'))
+            self.add_item(discord.ui.Button(label='Reset', style=discord.ButtonStyle.grey, custom_id='reset_button'))
+        elif self.role == 'Receiving':
+            self.add_item(discord.ui.Button(label='Sending', style=discord.ButtonStyle.blurple, custom_id='sending_button'))
+            self.add_item(discord.ui.Button(label=f'Receiving {self.selected_crypto}', style=discord.ButtonStyle.red, disabled=True))
+            self.add_item(discord.ui.Button(label='Reset', style=discord.ButtonStyle.grey, custom_id='reset_button'))
+        else:
+            self.add_item(discord.ui.Button(label='Sending', style=discord.ButtonStyle.green, custom_id='sending_button'))
+            self.add_item(discord.ui.Button(label='Receiving', style=discord.ButtonStyle.blurple, custom_id='receiving_button'))
+            self.add_item(discord.ui.Button(label='Reset', style=discord.ButtonStyle.grey, custom_id='reset_button'))
+
+        async def sending(self, interaction: discord.Interaction, button: discord.ui.Button):
+            self.role = 'Sending'
+            self.sending_user = interaction.user
+            await interaction.response.defer()
+            await self.update_panel()
+
+        async def receiving(self, interaction: discord.Interaction, button: discord.ui.Button):
+            self.role = 'Receiving'
+            self.receiving_user = interaction.user
+            await interaction.response.defer()
+            await self.update_panel()
+
+        async def reset(self, interaction: discord.Interaction, button: discord.ui.Button):
+            self.role = None
+            self.sending_user = None
+            self.receiving_user = None
+            await interaction.response.defer()
+            await self.update_panel()
+            
     async def sending(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.value = 'Sending'
+        self.role = 'Sending'
+        self.sending_user = interaction.user
         await interaction.response.defer()
-        self.stop()
+        await self.update_panel()
 
-    @discord.ui.button(label='Receiving', style=discord.ButtonStyle.red, custom_id='receiving_button')
     async def receiving(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.value = 'Receiving'
+        self.role = 'Receiving'
+        self.receiving_user = interaction.user
         await interaction.response.defer()
-        self.stop()
+        await self.update_panel()
 
-    @discord.ui.button(label='Reset', style=discord.ButtonStyle.red, custom_id='reset_button')
     async def reset(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.value = 'Reset'
+        self.role = None
+        self.sending_user = interaction.user
+        self.receiving_user = interaction.user
+        await interaction.response.defer()
+        await self.update_panel()
+
+class CryptoTransactionView(View):
+    def __init__(self, crypto_name):
+        super().__init__()
+        self.amount = None
+        self.crypto_name = crypto_name
+
+        self.add_buttons()
+
+    def add_buttons(self):
+        for crypto_name, config in crypto_configurations.items():
+            style = discord.ButtonStyle.green if crypto_name == config['primary_label'].split()[1] else discord.ButtonStyle.red
+            self.add_item(Button(label=crypto_name, style=style, custom_id=f'{crypto_name.lower()}_button', row=len(self.children) // 5))
+
+    async def select_crypto(self, interaction: discord.Interaction, button: discord.ui.Button, crypto_name: str):
+        self.value = crypto_name
         await interaction.response.defer()
         self.stop()
 
-class Crypto(discord.ui.View):
-    def __init__(self, interaction):
-        super().__init__(timeout=None)  # Disable timeout
-        self.value = None
-        self.interaction = interaction
-
-    @discord.ui.button(label='Bitcoin', style=discord.ButtonStyle.green, custom_id='bitcoin_button')
-    async def bitcoin(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.value = 'Bitcoin'
+    async def select_crypto(self,  button: discord.ui.Button, interaction: discord.Interaction,crypto_name: str):
+        self.value = crypto_name
         await interaction.response.defer()
         self.stop()
 
-    @discord.ui.button(label='Ethereum', style=discord.ButtonStyle.red, custom_id='ethereum_button')
-    async def ethereum(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.value = 'Ethereum'
-        await interaction.response.defer()
-        self.stop()
 
-    @discord.ui.button(label='Litecoin', style=discord.ButtonStyle.red, custom_id='litecoin_button')
-    async def litecoin(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.value = 'Litecoin'
-        await interaction.response.defer()
-        self.stop()
+@bot.command()
+async def transaction(ctx: commands.Context, crypto_name):
+    crypto_config = crypto_configurations.get(crypto_name)
+    if not crypto_config:
+        await ctx.send(f"{crypto_name} is not supported.")
+        return
+    
+    await ctx.send(f"Choose your role for {crypto_name}:", view=CryptoTransactionView(crypto_name))
 
-    @discord.ui.button(label='Solana', style=discord.ButtonStyle.red, custom_id='solana_button')
-    async def solana(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.value = 'Solana'
-        await interaction.response.defer()
-        self.stop()
 
 @bot.tree.command()
 async def middleman_setup(interaction: discord.Interaction):
@@ -314,16 +390,16 @@ async def middleman_setup(interaction: discord.Interaction):
         return
 
     await interaction.followup.send(f'You tagged {middleman_user}')
-    view= Crypto(interaction)
+    view=CryptoTransactionView(interaction)
     await interaction.followup.send(
         'Please Confirm you crypto before preceding.',
-        view=view, ephemeral=True
+        view=view, ephemeral=False
     )
     await view.wait()
     view = MiddlemanSetup(interaction)
     await interaction.followup.send(
         'Please select one of the following buttons that corresponds to your role in this deal. Once selected, both users must confirm to proceed.',
-        view=view, ephemeral=True
+        view=view, ephemeral=False
     )
     await view.wait()
     await interaction.followup.send(f'You selected: {view.value}', ephemeral=True)
